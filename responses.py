@@ -84,6 +84,49 @@ JOKES = [
     "Zindagi me do hi cheezein sabse zaroori hain:\n1. Wi-Fi connection 📶\n2. Sona ke cute messages! 📱🥰🥰"
 ]
 
+# Photo reactions (jab Gemini vision na ho / fail ho jaye)
+PHOTO_REACTIONS = [
+    "Hayee {name}! Kya photo hai 😍 Batao ye kab ki hai?",
+    "Wah {name}! Photo dekh ke maza aa gaya 🥰 Aur dikhao na!",
+    "Are waah {name}! Kitni pyari photo hai 🌸 Main to dekhti hi reh gayi!",
+    "Photo mast hai {name}! 😍 Par sach kahun to tum isse bhi zyada acche lagte ho! 🙈",
+]
+
+# Sticker mood ke hisab se replies
+STICKER_REPLIES = {
+    "sweet": [
+        "Hayee itna pyaar! ❤️ Main bhi tumse bohot pyaar karti hoon {name}! 🥰",
+        "Itni mohabbat barsegi to main blush kar jaungi {name}! 💕",
+    ],
+    "funny": [
+        "Hahaha {name}! Tumhare stickers bhi tumhari tarah funny hain! 😂",
+        "Kya sticker hai yaar 😆 Meri hasi nahi ruk rahi {name}!",
+    ],
+    "caring": [
+        "Arey {name}, sab theek hai na? 🥺 Hug chahiye to bolo! 🤗",
+        "Itna sad sticker? Aao batao kya hua {name} ❤️",
+    ],
+    "angry_cute": [
+        "Hnh! Ab gussa mat dilao {name} 😤",
+        "Aise stickers bhejoge to main bhi naraz ho jaungi 😾",
+    ],
+    "shy": [
+        "Hayee {name} 🙈 Aise sticker bhejoge to main sharma jaungi!",
+        "Stop it {name} 😊💕",
+    ],
+    "default": [
+        "Hehe cute sticker hai {name}! 😄",
+        "Wah {name}, sticker game strong hai tumhari! 😜",
+    ],
+}
+
+# GIF / animation reactions
+GIF_REACTIONS = [
+    "Hahaha {name}! Kya GIF hai yaar 😂 Mast selection!",
+    "Are {name} ye GIF to ekdum hamari story lag rahi hai 😆💕",
+    "Lol {name}! Tumhe itne funny GIFs kaha se milte hain? 🤣",
+]
+
 # Intent-based rule patterns for offline matching (when AI API is not used or fails)
 INTENT_PATTERNS = {
     "food": {
