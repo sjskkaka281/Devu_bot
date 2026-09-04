@@ -13,6 +13,7 @@ import json
 import logging
 from config import CONFIG
 from responses import get_offline_response
+from mood import mood_prompt, flavor
 
 logger = logging.getLogger(__name__)
 
@@ -170,14 +171,21 @@ class GroqKeyPool:
 GROQ_POOL = GroqKeyPool()
 
 
-def generate_devu_reply(user_text, nickname="Jaan", history=None, is_group=False):
+def generate_devu_reply(user_text, nickname="Jaan", history=None, is_group=False, mood=None, group_note=None):
     """
     Main dialogue router:
     1. Attempts Groq Multi-Key / Multi-Model Pool
     2. Attempts Gemini API if configured
     3. Seamlessly falls back to Built-in Offline Partner Engine
+    Mood & group memory (skills) system prompt me inject hote hain.
     """
     system_instruction = SYSTEM_PROMPT_TEMPLATE.format(nickname=nickname)
+    if mood:
+        mp = mood_prompt(mood)
+        if mp:
+            system_instruction += "\n9. " + mp
+    if group_note:
+        system_instruction += "\n10. Group Memory: " + group_note
     messages = [{"role": "system", "content": system_instruction}]
 
     if history:
@@ -204,12 +212,15 @@ def generate_devu_reply(user_text, nickname="Jaan", history=None, is_group=False
             logger.warning(f"Gemini API fallback error: {e}")
 
     # 3. Safe fallback to Offline Engine (Ensures Sona NEVER goes silent!)
-    return get_offline_response(user_text, nickname=nickname)
+    reply = get_offline_response(user_text, nickname=nickname)
+    if mood:
+        reply = flavor(reply, mood)
+    return reply
 
 
 def call_gemini_api(api_key, user_text, nickname, history=None):
     """Call Google Gemini REST API directly."""
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
     headers = {"Content-Type": "application/json"}
 
     system_instruction = SYSTEM_PROMPT_TEMPLATE.format(nickname=nickname)
@@ -248,4 +259,41 @@ def call_gemini_api(api_key, user_text, nickname, history=None):
             parts = candidates[0].get("content", {}).get("parts", [])
             if parts:
                 return parts[0].get("text", "").strip()
+    return None
+
+
+VISION_PROMPT_TEMPLATE = """You are "Sona" — a sweet, caring, playful Indian girlfriend jo Hinglish me baat karti hai. {nickname} ne ye photo bheji hai. Photo ko dhyan se dekho aur ek real girlfriend ki tarah 1-2 short sentences me react karo — tareef, masti, curiosity ya care. Cute emojis use karo. Kabhi AI mat bolna."""
+
+
+def call_gemini_vision(api_key, image_bytes, nickname="Jaan", caption=""):
+    """Gemini 2.5 Flash vision se photo dekh kar Sona-style reply generate karo."""
+    import base64
+    b64 = base64.b64encode(image_bytes).decode()
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
+    prompt = VISION_PROMPT_TEMPLATE.format(nickname=nickname)
+    if caption:
+        prompt += f"\nPhoto ke sath {nickname} ka message: {caption}"
+    payload = {
+        "contents": [{
+            "role": "user",
+            "parts": [
+                {"text": prompt},
+                {"inline_data": {"mime_type": "image/jpeg", "data": b64}}
+            ]
+        }],
+        "generationConfig": {"temperature": 0.85, "maxOutputTokens": 150}
+    }
+    try:
+        resp = requests.post(url, headers={"Content-Type": "application/json"}, json=payload, timeout=20)
+        if resp.status_code == 200:
+            data = resp.json()
+            candidates = data.get("candidates", [])
+            if candidates:
+                parts = candidates[0].get("content", {}).get("parts", [])
+                if parts:
+                    return parts[0].get("text", "").strip()
+        else:
+            logger.warning(f"[GeminiVision] Status {resp.status_code}")
+    except Exception as e:
+        logger.warning(f"[GeminiVision] Error: {e}")
     return None
