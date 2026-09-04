@@ -1,4 +1,4 @@
-name: Devu Telegram Bot 24/7 Cloud Runner
+name: Sona Telegram Bot 24/7 Cloud Runner
 
 on:
   push:
@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   run-devu:
-    name: 💖 Devu 24/7 Cloud Host
+    name: 💖 Sona 24/7 Cloud Host
     runs-on: ubuntu-latest
     timeout-minutes: 350 # Max 5.8 hours per session
 
@@ -41,7 +41,7 @@ jobs:
           restore-keys: |
             devu-db-
 
-      - name: 🚀 Run Devu Bot (5 Hours Continuous Session)
+      - name: 🚀 Run Sona Bot (5 Hours Continuous Session)
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           GROQ_API_KEYS: ${{ secrets.GROQ_API_KEYS }}
