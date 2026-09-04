@@ -20,6 +20,9 @@ from responses import (
     RANDOM_CHECKINS, GROUP_RANDOM_CHAT
 )
 import database
+import skills
+import task as taskmod
+import responses as responses_mod
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +33,14 @@ WISH_SCHEDULE = [
     ("afternoon", 13 * 60 + 15, 16 * 60 + 59, AFTERNOON_WISHES), # 13:15 - 16:59
     ("evening",   17 * 60 + 45, 21 * 60 + 59, EVENING_WISHES),   # 17:45 - 21:59
     ("night",     22 * 60 + 30, 25 * 60 + 59, NIGHT_WISHES),     # 22:30 - 01:59 (crosses midnight)
+]
+
+# Group care windows: meals & health check-ins (per group, once a day)
+GROUP_CARE_SCHEDULE = [
+    ("breakfast", 8 * 60, 10 * 60 + 30, "GROUP_BREAKFAST_PINGS"),
+    ("lunch",     13 * 60, 15 * 60 + 30, "GROUP_LUNCH_PINGS"),
+    ("health",    17 * 60, 19 * 60 + 30, "GROUP_HEALTH_CHECKINS"),
+    ("dinner",    20 * 60, 22 * 60 + 30, "GROUP_DINNER_PINGS"),
 ]
 
 
@@ -101,17 +112,27 @@ class DevuScheduler:
                     logger.debug(f"Could not send to group {g.get('group_id')}: {e}")
 
     def send_random_group_chatter(self):
-        """Send a spontaneous friendly message to an active group."""
+        """Send a spontaneous friendly message to an active group.
+        Fairness: agar koi member chup/shant hai to pehle usko naam se bulati hai,
+        taaki kisi ko ignored feel na ho."""
         groups = database.get_all_groups()
         if not groups:
             return
         # Pick one random group
         target_group = random.choice(groups)
+        gid = target_group["group_id"]
         try:
-            text = random.choice(GROUP_RANDOM_CHAT)
-            self.bot.send_message(target_group["group_id"], text)
+            quiet = skills.get_quiet_member(gid)
+            if quiet and random.random() < 0.6:
+                name = quiet["first_name"] or quiet["username"] or "Jaan"
+                text = random.choice(skills.QUIET_MEMBER_PINGS).format(name=name)
+                self.bot.send_message(gid, text)
+                skills.mark_addressed(gid, quiet["user_id"])
+            else:
+                text = random.choice(GROUP_RANDOM_CHAT)
+                self.bot.send_message(gid, text)
         except Exception as e:
-            logger.debug(f"Could not send random chatter to group {target_group['group_id']}: {e}")
+            logger.debug(f"Could not send random chatter to group {gid}: {e}")
 
     def scheduler_loop(self):
         """Continuous background loop checking clock & triggers."""
@@ -147,10 +168,51 @@ class DevuScheduler:
                     self.last_group_time = time.time()
                     self.group_interval = random.randint(10800, 21600)
 
+                # 7. User tasks & reminders (DM + groups, 30-min retry until confirmed)
+                self.run_tasks(now)
+
+                # 8. Group care: breakfast/lunch/dinner + health/halchal check-ins
+                self.run_group_care(now)
+
             except Exception as e:
                 logger.error(f"[Scheduler Exception] {e}")
 
             time.sleep(30)  # Check every 30 seconds
+
+    def run_tasks(self, now):
+        """Due tasks ko puchho (time aa gaya, done nahi, 30 min retry window)."""
+        for t in taskmod.get_due(now):
+            try:
+                name = t["user_name"] or "Jaan"
+                line = random.choice(taskmod.REMINDER_LINES).format(name=name, title=t["title"])
+                self.bot.send_message(t["chat_id"], line)
+                taskmod.mark_asked(t["id"], now)
+                logger.info(f"[Tasks] Asked task #{t['id']} ('{t['title']}') in chat {t['chat_id']}")
+            except Exception as e:
+                logger.debug(f"Task ask failed #{t['id']}: {e}")
+
+    def run_group_care(self, now):
+        """Har group me breakfast/lunch/dinner + health/halchal — roz ek baar har window me."""
+        minutes = now.hour * 60 + now.minute
+        day_str = now.strftime("%Y-%m-%d")
+        groups = database.get_all_groups()
+        if not groups:
+            return
+        for key, start, end, list_name in GROUP_CARE_SCHEDULE:
+            if not (start <= minutes <= end):
+                continue
+            pool = getattr(responses_mod, list_name)
+            for g in groups:
+                state_key = f"gcare_{key}_{g['group_id']}"
+                if database.get_state(state_key) == day_str:
+                    continue
+                try:
+                    self.bot.send_message(g["group_id"], random.choice(pool))
+                    database.set_state(state_key, day_str)
+                    logger.info(f"[GroupCare] {key} ping sent to {g['group_id']}")
+                    time.sleep(0.08)
+                except Exception as e:
+                    logger.debug(f"Group care {key} failed for {g['group_id']}: {e}")
 
     def start(self):
         """Start scheduler in background daemon thread."""
