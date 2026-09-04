@@ -12,6 +12,7 @@ DEFAULT_CONFIG = {
     "BOT_TOKEN": "",
     "OWNER_ID": 0,
     "GROQ_API_KEYS": [],       # Supports single string or list of multiple keys
+    "GEMINI_API_KEYS": [],     # Multiple Gemini keys (comma/newline separated) with auto-rotation
     "GEMINI_API_KEY": "",
     "BOT_NAME": "Sona",
     "TIMEZONE": "Asia/Kolkata",
@@ -84,6 +85,13 @@ def load_config():
 
     if os.environ.get("GEMINI_API_KEY"):
         cfg["GEMINI_API_KEY"] = os.environ.get("GEMINI_API_KEY").strip()
+
+    # Environment variable for single or multiple Gemini keys
+    env_gemini = os.environ.get("GEMINI_API_KEYS") or os.environ.get("GEMINI_API_KEY")
+    if env_gemini:
+        parsed_gemini = parse_keys_list(env_gemini)
+        if parsed_gemini:
+            cfg["GEMINI_API_KEYS"] = parsed_gemini
 
     return cfg
 
