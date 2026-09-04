@@ -458,15 +458,33 @@ def handle_photo(message):
 
 @bot.message_handler(content_types=['sticker'])
 def handle_sticker(message):
-    """Sticker ke emoji se mood pakdo aur usi emotion me reply karo."""
+    """Static sticker -> Gemini vision se asli analysis; animated/video ya fail hone par emoji-mood reply."""
     if message.chat.type != "private":
         skills.observe_member(message.chat.id, message.from_user.id,
                               message.from_user.first_name or "", message.from_user.username or "")
     nickname = _media_nickname(message)
     emoji = message.sticker.emoji if message.sticker else ""
-    m = mood_engine.sticker_mood(emoji) or "default"
-    pool = STICKER_REPLIES.get(m, STICKER_REPLIES["default"])
-    _send_media_reply(message, random.choice(pool).format(name=nickname))
+    reply_text = None
+
+    # Sirf STATIC stickers (webp) Gemini dekh sakta hai; animated(TGS)/video(WebM) nahi
+    if (GEMINI_POOL.keys_state and message.sticker
+            and not message.sticker.is_animated and not message.sticker.is_video):
+        try:
+            file_info = bot.get_file(message.sticker.file_id)
+            sticker_bytes = bot.download_file(file_info.file_path)
+            reply_text = call_gemini_vision(
+                sticker_bytes, nickname=nickname, mime="image/webp",
+                caption=f"Ye ek Telegram sticker hai (emoji: {emoji or 'none'}). Is sticker ko dekh kar Sona style me react karo."
+            )
+        except Exception as e:
+            logger.warning(f"Sticker vision error: {e}")
+
+    # Fallback: emoji-mood reply (hamesha ready)
+    if not reply_text:
+        m = mood_engine.sticker_mood(emoji) or "default"
+        pool = STICKER_REPLIES.get(m, STICKER_REPLIES["default"])
+        reply_text = random.choice(pool).format(name=nickname)
+    _send_media_reply(message, reply_text)
 
 
 @bot.message_handler(content_types=['animation'])
