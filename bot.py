@@ -17,10 +17,13 @@ from telebot import types
 # Local modules
 from config import CONFIG, save_config
 import database
-from ai_engine import generate_devu_reply
+import skills
+import mood as mood_engine
+from ai_engine import generate_devu_reply, call_gemini_vision
 from scheduler import DevuScheduler
 from responses import (
-    SHAYARIS, JOKES, MORNING_WISHES, AFTERNOON_WISHES, EVENING_WISHES, NIGHT_WISHES
+    SHAYARIS, JOKES, MORNING_WISHES, AFTERNOON_WISHES, EVENING_WISHES, NIGHT_WISHES,
+    PHOTO_REACTIONS, STICKER_REPLIES, GIF_REACTIONS
 )
 
 # Setup Logging
@@ -395,12 +398,86 @@ def handle_new_members(message):
                 f"Arey waah! 💖 Main <b>Sona</b> is group me aa gayi! Thank you for having me! Sab log kaise ho? 🥰"
             )
         else:
+            # Naya member aaya -> usko bhi member memory me note karo
+            skills.observe_member(
+                message.chat.id, member.id,
+                member.first_name or "", member.username or ""
+            )
             name = member.first_name or "Dear"
             welcome_msgs = [
                 f"Welcome <b>{name}</b>! 🌸 Group me aapka bohot bohot swagat hai! Masti karo aur khush raho! 💕",
                 f"Hello <b>{name}</b>! ✨ Sona ki taraf se warm welcome! Chalo jaldi se introduce karo apne aap ko! 🥰"
             ]
             bot.reply_to(message, random.choice(welcome_msgs))
+
+
+# -------------------------------------------------------------
+# MEDIA HANDLERS — Photo (Gemini Vision), Sticker (Mood), GIF (Masti)
+# -------------------------------------------------------------
+
+def _media_nickname(message):
+    user_data = database.get_user(message.from_user.id)
+    if user_data and user_data.get("nickname"):
+        return user_data["nickname"]
+    return message.from_user.first_name or "Jaan"
+
+def _send_media_reply(message, text):
+    try:
+        if message.chat.type == "private":
+            bot.send_message(message.chat.id, text)
+        else:
+            bot.reply_to(message, text)
+            skills.mark_addressed(message.chat.id, message.from_user.id)
+    except Exception as e:
+        logger.error(f"Media reply error: {e}")
+
+
+@bot.message_handler(content_types=['photo'])
+def handle_photo(message):
+    """Photo aayi -> Gemini vision se asli me dekho; fail ho to pyara generic reaction."""
+    user_id = message.from_user.id
+    if message.chat.type != "private":
+        skills.observe_member(message.chat.id, user_id,
+                              message.from_user.first_name or "", message.from_user.username or "")
+    nickname = _media_nickname(message)
+    caption = message.caption or ""
+    reply_text = None
+
+    gemini_key = CONFIG.get("GEMINI_API_KEY", "").strip()
+    if gemini_key and message.photo:
+        try:
+            file_info = bot.get_file(message.photo[-1].file_id)
+            img_bytes = bot.download_file(file_info.file_path)
+            reply_text = call_gemini_vision(gemini_key, img_bytes, nickname=nickname, caption=caption)
+        except Exception as e:
+            logger.warning(f"Photo vision error: {e}")
+
+    if not reply_text:
+        reply_text = random.choice(PHOTO_REACTIONS).format(name=nickname)
+    _send_media_reply(message, reply_text)
+
+
+@bot.message_handler(content_types=['sticker'])
+def handle_sticker(message):
+    """Sticker ke emoji se mood pakdo aur usi emotion me reply karo."""
+    if message.chat.type != "private":
+        skills.observe_member(message.chat.id, message.from_user.id,
+                              message.from_user.first_name or "", message.from_user.username or "")
+    nickname = _media_nickname(message)
+    emoji = message.sticker.emoji if message.sticker else ""
+    m = mood_engine.sticker_mood(emoji) or "default"
+    pool = STICKER_REPLIES.get(m, STICKER_REPLIES["default"])
+    _send_media_reply(message, random.choice(pool).format(name=nickname))
+
+
+@bot.message_handler(content_types=['animation'])
+def handle_gif(message):
+    """GIF par masti bhara reply."""
+    if message.chat.type != "private":
+        skills.observe_member(message.chat.id, message.from_user.id,
+                              message.from_user.first_name or "", message.from_user.username or "")
+    nickname = _media_nickname(message)
+    _send_media_reply(message, random.choice(GIF_REACTIONS).format(name=nickname))
 
 
 # -------------------------------------------------------------
@@ -418,6 +495,11 @@ def handle_all_messages(message):
         database.add_or_update_user(user_id, message.from_user.username, message.from_user.first_name)
     else:
         database.add_or_update_group(message.chat.id, message.chat.title)
+        # Group member memory: har bande ko note karo
+        skills.observe_member(
+            message.chat.id, user_id,
+            message.from_user.first_name or "", message.from_user.username or ""
+        )
 
     # Fetch user profile
     user_data = database.get_user(user_id)
@@ -480,12 +562,23 @@ def handle_all_messages(message):
     if not is_private:
         cleaned_text = user_text.replace(f"@{bot.get_me().username}", "").strip()
 
+    # Mood + group member memory (groups me situation-aware baat ke liye)
+    mood_tag = None
+    group_note = ""
+    if not is_private:
+        mood_tag = mood_engine.detect_mood(cleaned_text)
+        if not mood_tag and random.random() < 0.5:
+            mood_tag = mood_engine.random_mood()
+        group_note = skills.build_group_note(message.chat.id, user_id)
+
     # Generate response
     reply_text = generate_devu_reply(
         user_text=cleaned_text,
         nickname=nickname,
         history=history,
-        is_group=(not is_private)
+        is_group=(not is_private),
+        mood=mood_tag,
+        group_note=group_note
     )
 
     # Small realistic delay
@@ -500,6 +593,8 @@ def handle_all_messages(message):
             bot.send_message(message.chat.id, reply_text)
         else:
             bot.reply_to(message, reply_text)
+            # Fairness: record ki Sona ne is member se baat ki
+            skills.mark_addressed(message.chat.id, user_id)
     except Exception as e:
         logger.error(f"Error sending message: {e}")
 
