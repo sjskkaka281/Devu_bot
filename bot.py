@@ -8,6 +8,7 @@ import sys
 import time
 import signal
 import random
+import re
 import argparse
 import logging
 import telebot
@@ -75,6 +76,21 @@ def get_settings_keyboard(user_id):
         types.InlineKeyboardButton("✨ Close Settings", callback_data="close_menu")
     )
     return markup
+
+
+# Question words (Hinglish + English) — Sona answers group questions even without being tagged
+QUESTION_TOKENS = {
+    "kya", "kyu", "kyon", "kaise", "kaisa", "kaisi", "kaun", "kab", "kahan",
+    "kitna", "kitne", "kitni", "kiska", "kiski", "kisne", "what", "why", "how",
+    "when", "where", "who", "which", "sach", "really"
+}
+
+def is_group_question(user_text):
+    """True if a group message looks like a question (Sona replies without tag)."""
+    if "?" in user_text:
+        return True
+    tokens = set(t for t in re.split(r"[^a-z0-9]+", user_text.lower()) if t)
+    return bool(tokens & QUESTION_TOKENS)
 
 
 # -------------------------------------------------------------
@@ -431,14 +447,17 @@ def handle_all_messages(message):
             message.reply_to_message.from_user.id == bot_info.id
         )
 
-        # 3. Random chatter chance (makes group lively)
-        random_chance = CONFIG.get("GROUP_RANDOM_REPLY_CHANCE", 0.20)
+        # 3. Someone asked a question -> Sona answers (even without tag)
+        is_question = is_group_question(user_text)
+
+        # 4. Random chatter chance (makes group lively)
+        random_chance = CONFIG.get("GROUP_RANDOM_REPLY_CHANCE", 0.45)
         is_random_lucky = (random.random() < random_chance)
 
-        # 4. Common friendly triggers
+        # 5. Common friendly triggers
         is_greeting = any(g in user_text.lower() for g in ["good morning", "good night", "gm all", "gn all", "kya chal rha"])
 
-        if is_mentioned or is_reply_to_bot or is_greeting or is_random_lucky:
+        if is_mentioned or is_reply_to_bot or is_question or is_greeting or is_random_lucky:
             should_reply = True
 
     if not should_reply:
