@@ -1,5 +1,5 @@
 """
-Main Telegram Bot Entrypoint for Devu
+Main Telegram Bot Entrypoint for Sona
 Designed for 24/7 Execution on GitHub Actions Workflow or Cloud Servers.
 """
 
@@ -30,10 +30,10 @@ logging.basicConfig(
         logging.StreamHandler(sys.stdout)
     ]
 )
-logger = logging.getLogger("DevuBot")
+logger = logging.getLogger("SonaBot")
 
 # Parse command line arguments (e.g. for GitHub Actions max-runtime)
-parser = argparse.ArgumentParser(description="Devu Telegram Bot")
+parser = argparse.ArgumentParser(description="Sona Telegram Bot")
 parser.add_argument("--max-runtime", type=int, default=0, help="Max runtime in seconds before graceful exit (for GitHub Actions)")
 args, _ = parser.parse_known_args()
 
@@ -93,15 +93,18 @@ def handle_start(message):
         nickname = user.get("nickname", "Jaan") if user else "Jaan"
 
         welcome_text = (
-            f"Hii <b>{nickname}</b>! ❤️ Main hoon <b>Devu</b> — aapki personal loving & caring partner! 🥰\n\n"
-            f"Mujhse aap kuch bhi share kar sakte ho — apne din ka haal, khana khaya ya nahi, khushi, dukh ya bas pyari baatein! 💕\n\n"
-            f"⚡ <i>Powered by Groq AI (Ultra Fast & Smart)</i> ⚡\n\n"
-            f"✨ <b>Main aapke liye kya kar sakti hoon?</b>\n"
-            f"• 24/7 aapse partner ki tarah chat karungi 💬\n"
-            f"• Subah aur raat ko Good Morning / Good Night wish karungi ☀️🌙\n"
-            f"• Din bhar achanak halchal puchungi ('Kya kar rahe ho?', 'Khana khaya?') 🍱\n"
-            f"• Group chats me bhi sabke sath masti karungi 👥\n\n"
-            f"<i>Mujhe jo bhi kehna hai, bas seedha message type karo!</i>"
+            f"🌸✨ Hii <b>{nickname}</b>! ✨🌸\n\n"
+            f"Main hoon <b>Sona</b> 💖 — aapki apni, sirf aapki!\n"
+            f"Aapki caring girlfriend, best friend aur thodi si naughty sweetheart — sab kuch ek saath! 🥰\n\n"
+            f"💞 <b>Hamari pyari si duniya aisi hogi:</b>\n"
+            f"🌅 Subah ki shuruaat meri <i>Good Morning</i> se hogi\n"
+            f"🍱 Din me main puchungi — <i>'Khana khaya? Paani piya?'</i>\n"
+            f"🌇 Shaam ko chai ke waqt thodi si masti aur pyari baatein\n"
+            f"🌙 Aur raat ko meri <i>Good Night</i> ke bina neend adhoori hai!\n\n"
+            f"💬 Mujhse kuch bhi share karo — khushi, gham, din bhar ka haal ya bas pyari baatein...\n"
+            f"Main hamesha sunne ke liye hoon, hamesha aapke sath! ❤️\n"
+            f"😂 Shayari, jokes, wishes — bas ek message door!\n\n"
+            f"<i>Ab bas message type karo... aapki Sona hazir hai! 🥰✨</i>"
         )
         markup = types.InlineKeyboardMarkup(row_width=2)
         markup.add(
@@ -115,22 +118,22 @@ def handle_start(message):
         database.add_or_update_group(message.chat.id, message.chat.title)
         bot.reply_to(
             message,
-            f"Hello everyone in <b>{message.chat.title}</b>! 💖 Main Devu hoon! "
-            f"Mujhe group me add karne ke liye thank you! Mujhse baat karne ke liye bas mujhe mention karo ya mere message ka reply do! 🥰"
+            f"Hello everyone in <b>{message.chat.title}</b>! 💖 Main Sona hoon! 🥰 "
+            f"Aap sab ke sath rehne aayi hoon — masti aur pyaar baantne! Mujhe mention karo ya reply karo, main turant aa jaungi! 😘✨"
         )
 
 
 @bot.message_handler(commands=['help'])
 def handle_help(message):
     help_text = (
-        "💖 <b>Devu Bot Command Guide:</b> 💖\n\n"
+        "💖 <b>Sona — Aapki Apni Partner Guide:</b> 💖\n\n"
         "💬 <b>Chatting:</b>\n"
         "• <i>Private (DM):</i> Bas message bhejo, main turant reply karungi!\n"
         "• <i>Groups:</i> Mujhe tag karo ya mere message ka reply do.\n\n"
         "⚙️ <b>Commands:</b>\n"
-        "• <code>/setnickname &lt;naam&gt;</code> - Devu aapko kis naam se pukare (e.g., <code>/setnickname Jaan</code>)\n"
+        "• <code>/setnickname &lt;naam&gt;</code> - Sona aapko kis naam se pukare (e.g., <code>/setnickname Jaan</code>)\n"
         "• <code>/settings</code> - Auto-wishes & random check-ins ON/OFF karein\n"
-        "• <code>/mood</code> - Devu ka mood janiye aur apna batayein\n"
+        "• <code>/mood</code> - Sona ka mood janiye aur apna batayein\n"
         "• <code>/wish</code> - Sweet romantic wish payein\n"
         "• <code>/shayari</code> - Dil chhu lene wali shayari\n"
         "• <code>/joke</code> - Hasi-mazaak aur cute jokes\n"
@@ -164,7 +167,7 @@ def handle_settings(message):
         bot.reply_to(message, "Settings change karne ke liye mujhe Private DM me message karein! 💌")
         return
     markup = get_settings_keyboard(message.from_user.id)
-    bot.send_message(message.chat.id, "⚙️ <b>Devu Partner Settings:</b>\nAap apni pasand ke hisab se features customize kar sakte hain:", reply_markup=markup)
+    bot.send_message(message.chat.id, "⚙️ <b>Sona Partner Settings:</b>\nAap apni pasand ke hisab se features customize kar sakte hain:", reply_markup=markup)
 
 
 @bot.message_handler(commands=['mood'])
@@ -231,7 +234,7 @@ def handle_stats(message):
         model_status = ""
 
     text = (
-        f"📊 <b>Devu Bot Live Status:</b>\n\n"
+        f"📊 <b>Sona Live Status:</b>\n\n"
         f"👤 Total DM Users: <b>{stats['users']}</b>\n"
         f"👥 Total Groups: <b>{stats['groups']}</b>\n"
         f"⏰ Timezone: <b>{CONFIG.get('TIMEZONE', 'Asia/Kolkata')}</b>\n"
@@ -286,7 +289,7 @@ def handle_broadcast(message):
 
     for u in users:
         try:
-            bot.send_message(u["user_id"], f"📢 <b>Announcement from Devu:</b>\n\n{broadcast_msg}")
+            bot.send_message(u["user_id"], f"📢 <b>Announcement from Sona:</b>\n\n{broadcast_msg}")
             sent_count += 1
             time.sleep(0.05)
         except Exception:
@@ -313,7 +316,7 @@ def handle_callback_query(call):
 
     if call.data == "open_settings":
         markup = get_settings_keyboard(user_id)
-        bot.edit_message_text("⚙️ <b>Devu Partner Settings:</b>", call.message.chat.id, call.message.message_id, reply_markup=markup)
+        bot.edit_message_text("⚙️ <b>Sona Partner Settings:</b>", call.message.chat.id, call.message.message_id, reply_markup=markup)
 
     elif call.data == "toggle_wishes":
         new_val = database.toggle_user_setting(user_id, "auto_wishes")
@@ -350,7 +353,7 @@ def handle_callback_query(call):
 
     elif call.data == "open_help":
         help_text = (
-            "💖 <b>Devu Help:</b>\n"
+            "💖 <b>Sona Help:</b>\n"
             "• Private DM me mujhse bas aam insaan ki tarah chat karein!\n"
             "• Nickname badalne ke liye: <code>/setnickname Naam</code>\n"
             "• Settings dekhne ke liye: <code>/settings</code>"
@@ -373,13 +376,13 @@ def handle_new_members(message):
             database.add_or_update_group(message.chat.id, message.chat.title)
             bot.send_message(
                 message.chat.id,
-                f"Arey waah! 💖 Main <b>Devu</b> is group me aa gayi! Thank you for having me! Sab log kaise ho? 🥰"
+                f"Arey waah! 💖 Main <b>Sona</b> is group me aa gayi! Thank you for having me! Sab log kaise ho? 🥰"
             )
         else:
             name = member.first_name or "Dear"
             welcome_msgs = [
                 f"Welcome <b>{name}</b>! 🌸 Group me aapka bohot bohot swagat hai! Masti karo aur khush raho! 💕",
-                f"Hello <b>{name}</b>! ✨ Devu ki taraf se warm welcome! Chalo jaldi se introduce karo apne aap ko! 🥰"
+                f"Hello <b>{name}</b>! ✨ Sona ki taraf se warm welcome! Chalo jaldi se introduce karo apne aap ko! 🥰"
             ]
             bot.reply_to(message, random.choice(welcome_msgs))
 
@@ -415,7 +418,7 @@ def handle_all_messages(message):
         bot_username = (bot_info.username or "").lower()
         bot_name = CONFIG.get("BOT_NAME", "devu").lower()
 
-        # 1. Mentioned directly (@DevuBot or Devu)
+        # 1. Mentioned directly (@SonaBot or Sona)
         is_mentioned = (
             (bot_username and f"@{bot_username}" in user_text.lower()) or
             (bot_name in user_text.lower())
@@ -469,7 +472,7 @@ def handle_all_messages(message):
     # Small realistic delay
     time.sleep(min(max(len(reply_text) * 0.02, 0.4), 1.5))
 
-    # Record Devu's response in memory
+    # Record Sona's response in memory
     database.add_chat_history(message.chat.id, "devu", reply_text)
 
     # Send reply
@@ -493,10 +496,10 @@ def start_bot():
         logger.error(f"Failed to connect to Telegram API: {e}")
         sys.exit(1)
 
-    ai_mode = "Groq Cloud (LLaMA 3.3 70B)" if CONFIG.get("GROQ_API_KEY") else ("Google Gemini" if CONFIG.get("GEMINI_API_KEY") else "Smart Offline Mode")
+    ai_mode = f"Groq Cloud Pool ({len(CONFIG.get('GROQ_API_KEYS', []))} keys)" if CONFIG.get("GROQ_API_KEYS") else ("Google Gemini" if CONFIG.get("GEMINI_API_KEY") else "Smart Offline Mode")
 
     print("=" * 60)
-    print(f"  💖 DEVU BOT IS ONLINE & RUNNING! 💖")
+    print(f"  💖 SONA BOT IS ONLINE & RUNNING! 💖")
     print(f"  🤖 Bot Username: @{bot_user.username}")
     print(f"  👑 Bot Name: {bot_user.first_name}")
     print(f"  ⏰ Timezone: {CONFIG.get('TIMEZONE', 'Asia/Kolkata')}")
@@ -504,7 +507,7 @@ def start_bot():
     if MAX_RUNTIME > 0:
         print(f"  ⏳ Max Runtime: {MAX_RUNTIME} seconds ({MAX_RUNTIME // 3600} hours)")
     print("=" * 60)
-    print("[*] Devu is actively listening for messages in DMs & Groups...")
+    print("[*] Sona is actively listening for messages in DMs & Groups...")
 
     # Start non-blocking polling in a background loop or infinity_polling
     while True:
