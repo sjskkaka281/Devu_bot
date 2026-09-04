@@ -15,7 +15,7 @@ DEFAULT_CONFIG = {
     "GEMINI_API_KEY": "",
     "BOT_NAME": "Sona",
     "TIMEZONE": "Asia/Kolkata",
-    "GROUP_RANDOM_REPLY_CHANCE": 0.20,
+    "GROUP_RANDOM_REPLY_CHANCE": 0.45,
     "AUTO_WISHES": True,
     "RANDOM_CHECKINS": True,
     "DEFAULT_NICKNAME": "Jaan"
