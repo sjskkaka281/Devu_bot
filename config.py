@@ -1,5 +1,5 @@
 """
-Configuration Manager for Devu Telegram Bot.
+Configuration Manager for Sona Telegram Bot.
 Handles multiple API keys, environment variables, GitHub Secrets, and custom settings.
 """
 
@@ -13,7 +13,7 @@ DEFAULT_CONFIG = {
     "OWNER_ID": 0,
     "GROQ_API_KEYS": [],       # Supports single string or list of multiple keys
     "GEMINI_API_KEY": "",
-    "BOT_NAME": "Devu",
+    "BOT_NAME": "Sona",
     "TIMEZONE": "Asia/Kolkata",
     "GROUP_RANDOM_REPLY_CHANCE": 0.20,
     "AUTO_WISHES": True,
