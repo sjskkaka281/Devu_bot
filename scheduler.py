@@ -1,101 +1,164 @@
 """
-Configuration Manager for Sona Telegram Bot.
-Handles multiple API keys, environment variables, GitHub Secrets, and custom settings.
+Background Scheduler for Sona Telegram Bot.
+Handles automated Morning/Afternoon/Evening/Night greetings and spontaneous random check-ins.
+
+Reliability: wish state is persisted in the SQLite database (bot_state table), so even if
+the bot restarts (GitHub Actions 5-hour sessions) a wish is NEVER skipped and NEVER sent
+twice on the same day. If the bot was offline at the exact wish time, the wish is sent as
+soon as the bot comes back online within that wish's window (catch-up).
 """
 
-import os
-import json
+import time
+import random
+import datetime
+import threading
+import logging
+import pytz
+from config import CONFIG
+from responses import (
+    MORNING_WISHES, AFTERNOON_WISHES, EVENING_WISHES, NIGHT_WISHES,
+    RANDOM_CHECKINS, GROUP_RANDOM_CHAT
+)
+import database
 
-CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
+logger = logging.getLogger(__name__)
 
-DEFAULT_CONFIG = {
-    "BOT_TOKEN": "",
-    "OWNER_ID": 0,
-    "GROQ_API_KEYS": [],       # Supports single string or list of multiple keys
-    "GEMINI_API_KEY": "",
-    "BOT_NAME": "Sona",
-    "TIMEZONE": "Asia/Kolkata",
-    "GROUP_RANDOM_REPLY_CHANCE": 0.45,
-    "AUTO_WISHES": True,
-    "RANDOM_CHECKINS": True,
-    "DEFAULT_NICKNAME": "Jaan"
-}
+# (state_key, window start minute-of-day, window end minute-of-day, message pool)
+# Wide windows = catch-up guarantee: wish bhejna kabhi miss nahi hota.
+WISH_SCHEDULE = [
+    ("morning",   7 * 60 + 30, 12 * 60 + 59, MORNING_WISHES),    # 07:30 - 12:59
+    ("afternoon", 13 * 60 + 15, 16 * 60 + 59, AFTERNOON_WISHES), # 13:15 - 16:59
+    ("evening",   17 * 60 + 45, 21 * 60 + 59, EVENING_WISHES),   # 17:45 - 21:59
+    ("night",     22 * 60 + 30, 25 * 60 + 59, NIGHT_WISHES),     # 22:30 - 01:59 (crosses midnight)
+]
 
-def parse_keys_list(raw_val):
-    """Parse string, list, or comma/newline-separated keys into a clean list of keys."""
-    if not raw_val:
-        return []
-    if isinstance(raw_val, list):
-        return [k.strip() for k in raw_val if isinstance(k, str) and k.strip()]
-    if isinstance(raw_val, str):
-        # Could be JSON string or delimited
-        raw_val = raw_val.strip()
-        if raw_val.startswith("[") and raw_val.endswith("]"):
+
+class DevuScheduler:
+    def __init__(self, bot_instance):
+        self.bot = bot_instance
+        self.tz_name = CONFIG.get("TIMEZONE", "Asia/Kolkata")
+        try:
+            self.tz = pytz.timezone(self.tz_name)
+        except Exception:
+            self.tz = pytz.timezone("Asia/Kolkata")
+
+        self.running = False
+        self.thread = None
+
+        # Spontaneous group chatter timer (every 3-6 hours, waking hours only)
+        self.last_group_time = time.time()
+        self.group_interval = random.randint(10800, 21600)
+
+    def get_current_time(self):
+        """Get current datetime in configured timezone."""
+        return datetime.datetime.now(self.tz)
+
+    @staticmethod
+    def _wish_day(now):
+        """Calendar day a wish belongs to (after midnight, night wish counts for previous day)."""
+        day = now.date()
+        if now.hour < 6:
+            day -= datetime.timedelta(days=1)
+        return day.strftime("%Y-%m-%d")
+
+    def get_due_wishes(self, now):
+        """Return [(key, pool, day_str)] for wishes whose window is open and not yet sent for that day."""
+        minutes = now.hour * 60 + now.minute
+        if minutes < 6 * 60:          # 00:00-05:59 -> continuation of previous day's night window
+            minutes += 24 * 60
+        day_str = self._wish_day(now)
+        due = []
+        for key, start, end, pool in WISH_SCHEDULE:
+            if start <= minutes <= end and database.get_state("wish_" + key) != day_str:
+                due.append((key, pool, day_str))
+        return due
+
+    def send_broadcast_message(self, message_list, is_wish=True):
+        """Send greeting/checkin to all registered users and groups."""
+        # 1. Send to private chat users
+        users = database.get_all_dm_users(wishes_only=is_wish, checkins_only=(not is_wish))
+        for u in users:
             try:
-                parsed = json.loads(raw_val)
-                if isinstance(parsed, list):
-                    return [k.strip() for k in parsed if isinstance(k, str) and k.strip()]
-            except Exception:
-                pass
-        
-        # Split by comma, newline, semicolon
-        delimiters = [",", "\n", ";", " "]
-        keys = [raw_val]
-        for d in delimiters:
-            new_keys = []
-            for k in keys:
-                new_keys.extend(k.split(d))
-            keys = new_keys
-        return [k.strip() for k in keys if k.strip() and len(k.strip()) > 5]
-    return []
+                user_id = u["user_id"]
+                nickname = u.get("nickname") or u.get("first_name") or "Jaan"
+                text = random.choice(message_list).format(name=nickname)
+                self.bot.send_message(user_id, text)
+                time.sleep(0.08)  # Prevent flood limit
+            except Exception as e:
+                # If user blocked bot or chat deleted, log quietly
+                logger.debug(f"Could not send to user {u.get('user_id')}: {e}")
 
-def load_config():
-    """Load configuration from config.json and Environment Variables / GitHub Secrets."""
-    cfg = DEFAULT_CONFIG.copy()
+        # 2. If it's a greeting, optionally send to registered groups too
+        if is_wish:
+            groups = database.get_all_groups(wishes_only=True)
+            for g in groups:
+                try:
+                    group_id = g["group_id"]
+                    text = random.choice(message_list).format(name="Friends / Group")
+                    self.bot.send_message(group_id, text)
+                    time.sleep(0.08)
+                except Exception as e:
+                    logger.debug(f"Could not send to group {g.get('group_id')}: {e}")
 
-    # Load from config.json if present
-    if os.path.exists(CONFIG_FILE):
+    def send_random_group_chatter(self):
+        """Send a spontaneous friendly message to an active group."""
+        groups = database.get_all_groups()
+        if not groups:
+            return
+        # Pick one random group
+        target_group = random.choice(groups)
         try:
-            with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-                saved = json.load(f)
-                cfg.update(saved)
+            text = random.choice(GROUP_RANDOM_CHAT)
+            self.bot.send_message(target_group["group_id"], text)
         except Exception as e:
-            print(f"[!] Warning: Could not read config.json: {e}")
+            logger.debug(f"Could not send random chatter to group {target_group['group_id']}: {e}")
 
-    # Process GROQ_API_KEYS from config.json
-    cfg["GROQ_API_KEYS"] = parse_keys_list(cfg.get("GROQ_API_KEYS") or cfg.get("GROQ_API_KEY") or [])
+    def scheduler_loop(self):
+        """Continuous background loop checking clock & triggers."""
+        logger.info("[+] Sona Background Scheduler running...")
+        last_random_time = time.time()
+        # Random interval between 2 to 4 hours for spontaneous check-ins
+        random_interval = random.randint(7200, 14400)
 
-    # Override with Environment Variables / GitHub Secrets
-    if os.environ.get("BOT_TOKEN"):
-        cfg["BOT_TOKEN"] = os.environ.get("BOT_TOKEN").strip()
+        while self.running:
+            try:
+                now = self.get_current_time()
+                hour = now.hour
 
-    if os.environ.get("OWNER_ID"):
-        try:
-            cfg["OWNER_ID"] = int(os.environ.get("OWNER_ID").strip())
-        except ValueError:
-            pass
+                # 1-4. Daily wishes with DB-backed catch-up (never skipped, never repeated)
+                if CONFIG.get("AUTO_WISHES", True):
+                    for key, pool, day_str in self.get_due_wishes(now):
+                        logger.info(f"[Scheduler] Sending {key} wishes for {day_str}...")
+                        self.send_broadcast_message(pool, is_wish=True)
+                        database.set_state("wish_" + key, day_str)
 
-    # Environment variable for single or multiple Groq keys
-    env_groq = os.environ.get("GROQ_API_KEYS") or os.environ.get("GROQ_API_KEY")
-    if env_groq:
-        parsed_env_keys = parse_keys_list(env_groq)
-        if parsed_env_keys:
-            cfg["GROQ_API_KEYS"] = parsed_env_keys
+                # 5. Spontaneous Random Check-ins (Between 10 AM and 9 PM IST)
+                if CONFIG.get("RANDOM_CHECKINS", True) and (10 <= hour <= 21):
+                    if time.time() - last_random_time > random_interval:
+                        logger.info("[Scheduler] Triggering Spontaneous Partner Check-in...")
+                        self.send_broadcast_message(RANDOM_CHECKINS, is_wish=False)
+                        last_random_time = time.time()
+                        random_interval = random.randint(7200, 14400)
 
-    if os.environ.get("GEMINI_API_KEY"):
-        cfg["GEMINI_API_KEY"] = os.environ.get("GEMINI_API_KEY").strip()
+                # 6. Spontaneous group chatter (every 3-6 hours, 10 AM - 9 PM IST)
+                if (10 <= hour <= 21) and (time.time() - self.last_group_time > self.group_interval):
+                    logger.info("[Scheduler] Sending spontaneous group chatter...")
+                    self.send_random_group_chatter()
+                    self.last_group_time = time.time()
+                    self.group_interval = random.randint(10800, 21600)
 
-    return cfg
+            except Exception as e:
+                logger.error(f"[Scheduler Exception] {e}")
 
-def save_config(cfg_dict):
-    """Save configuration to config.json."""
-    try:
-        with open(CONFIG_FILE, "w", encoding="utf-8") as f:
-            json.dump(cfg_dict, f, indent=4, ensure_ascii=False)
-        return True
-    except Exception as e:
-        print(f"[!] Error saving config: {e}")
-        return False
+            time.sleep(30)  # Check every 30 seconds
 
-# Initialize configuration
-CONFIG = load_config()
+    def start(self):
+        """Start scheduler in background daemon thread."""
+        if not self.running:
+            self.running = True
+            self.thread = threading.Thread(target=self.scheduler_loop, daemon=True)
+            self.thread.start()
+
+    def stop(self):
+        """Stop scheduler."""
+        self.running = False
