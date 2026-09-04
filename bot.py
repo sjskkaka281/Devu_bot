@@ -19,7 +19,7 @@ from config import CONFIG, save_config
 import database
 import skills
 import mood as mood_engine
-from ai_engine import generate_devu_reply, call_gemini_vision
+from ai_engine import generate_devu_reply, call_gemini_vision, GEMINI_POOL
 from scheduler import DevuScheduler
 from responses import (
     SHAYARIS, JOKES, MORNING_WISHES, AFTERNOON_WISHES, EVENING_WISHES, NIGHT_WISHES,
@@ -443,12 +443,11 @@ def handle_photo(message):
     caption = message.caption or ""
     reply_text = None
 
-    gemini_key = CONFIG.get("GEMINI_API_KEY", "").strip()
-    if gemini_key and message.photo:
+    if GEMINI_POOL.keys_state and message.photo:
         try:
             file_info = bot.get_file(message.photo[-1].file_id)
             img_bytes = bot.download_file(file_info.file_path)
-            reply_text = call_gemini_vision(gemini_key, img_bytes, nickname=nickname, caption=caption)
+            reply_text = call_gemini_vision(img_bytes, nickname=nickname, caption=caption)
         except Exception as e:
             logger.warning(f"Photo vision error: {e}")
 
