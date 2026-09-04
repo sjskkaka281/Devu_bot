@@ -46,6 +46,7 @@ jobs:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           GROQ_API_KEYS: ${{ secrets.GROQ_API_KEYS }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_API_KEYS: ${{ secrets.GEMINI_API_KEYS }}
           OWNER_ID: ${{ secrets.OWNER_ID }}
           MAX_RUNTIME: 18000 # 5 Hours (Graceful handoff)
         run: |
