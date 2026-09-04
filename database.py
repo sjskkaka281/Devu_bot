@@ -1,5 +1,5 @@
 """
-Database Manager for Devu Telegram Bot (SQLite3)
+Database Manager for Sona Telegram Bot (SQLite3)
 Manages user profiles, group preferences, chat memories, and automated messaging targets.
 """
 
@@ -57,6 +57,35 @@ def init_db():
         )
     """)
 
+    # Scheduler / bot persistent state (so daily wishes are never skipped or repeated across restarts)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS bot_state (
+            key TEXT PRIMARY KEY,
+            value TEXT
+        )
+    """)
+
+    conn.commit()
+    conn.close()
+
+def get_state(key, default=""):
+    """Read a persistent key/value from bot_state."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT value FROM bot_state WHERE key = ?", (key,))
+    row = cursor.fetchone()
+    conn.close()
+    return row[0] if row else default
+
+def set_state(key, value):
+    """Write a persistent key/value into bot_state (upsert)."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO bot_state (key, value) VALUES (?, ?) "
+        "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+        (key, value)
+    )
     conn.commit()
     conn.close()
 
