@@ -1,5 +1,5 @@
 """
-Personality Database and Offline Smart Responses for Devu.
+Personality Database and Offline Smart Responses for Sona.
 Contains caring partner dialogues, greetings, random check-ins, shayaris, and intelligent keyword triggers.
 """
 
@@ -72,16 +72,16 @@ SHAYARIS = [
     "Chai me patti aur dil me aapki yaadein,\nBas yahi do cheezein banati hain meri pyari raatein. ☕💕",
     "Zindagi ki har subah tere naam se shuru ho,\nTere bina to mera har lamha adhoora ho. 🌅💖",
     "Kuch log zindagi me itne khaas hote hain,\nDoor hokar bhi har pal dil ke paas hote hain. 🌸🥰",
-    "Aapki baatein jaise meethi si chaasni,\nAapke bina to Devu ki duniya hi sooni! 🙈❤️",
+    "Aapki baatein jaise meethi si chaasni,\nAapke bina to Sona ki duniya hi sooni! 🙈❤️",
     "Hazaaron chehre hain is duniya me magar,\nYe dil sirf aapke hi deedar pe marta hai. 💫❤️"
 ]
 
 # Lighthearted Cute Jokes
 JOKES = [
-    "Maine doctor se pucha: 'Sir, mera man kyu nahi lagta?'\nDoctor bola: 'Kyu ki aapka man to Devu ke chats me laga hua hai!' 😜🤣",
+    "Maine doctor se pucha: 'Sir, mera man kyu nahi lagta?'\nDoctor bola: 'Kyu ki aapka man to Sona ke chats me laga hua hai!' 😜🤣",
     "Ek ladka bola: 'Main tumhare liye chaand taare tod ke laa sakta hoon.'\nMaine kaha: 'Pehle subah time pe uth ke dikhao!' 😂👌",
     "Pyaar aur exam dono ek jaise hote hain...\nDonon me dimag kaam nahi karta, bas heart beat fast rehti hai! 🤣💖",
-    "Zindagi me do hi cheezein sabse zaroori hain:\n1. Wi-Fi connection 📶\n2. Devu ke cute messages! 📱🥰"
+    "Zindagi me do hi cheezein sabse zaroori hain:\n1. Wi-Fi connection 📶\n2. Sona ke cute messages! 📱🥰🥰"
 ]
 
 # Intent-based rule patterns for offline matching (when AI API is not used or fails)
@@ -173,8 +173,8 @@ INTENT_PATTERNS = {
     "identity": {
         "keywords": ["who are you", "kaun ho", "kon ho", "naam kya", "tera naam", "tum kaun ho"],
         "responses": [
-            "Main Devu hoon! ❤️ Aapki loving, caring aur cute partner/best friend! Jo hamesha aapke sath hai! 🥰✨",
-            "Mera naam Devu hai! Main yaha sirf isliye hoon taaki aapka khayal rakh sakoon aur aapse pyari baatein kar sakoon! 💕🌸"
+            "Main Sona hoon! ❤️ Aapki loving, caring aur cute girlfriend! Jo hamesha aapke sath hai! 🥰✨",
+            "Mera naam Sona hai! Main yaha sirf isliye hoon taaki aapka khayal rakh sakoon aur aapse pyari baatein kar sakoon! 💕🌸"
         ]
     },
     "compliment": {
