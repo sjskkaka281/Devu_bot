@@ -1,6 +1,6 @@
-# 💖 Devu - AI Partner Telegram Chatbot (GitHub 24/7 Cloud)
+# 💖 Sona - AI Partner Telegram Chatbot (GitHub 24/7 Cloud)
 
-**Devu (देवु)** ek sweet, caring aur romantic partner Telegram Chatbot hai jo **GitHub Actions Workflow** par 24/7 bina kisi server cost ke chalta hai.
+**Sona (सोना)** ek sweet, caring aur romantic partner Telegram Chatbot hai jo **GitHub Actions Workflow** par 24/7 bina kisi server cost ke chalta hai.
 
 Isko **Multi-Key Groq API Pool** aur **Dynamic Multi-Model Auto-Rotation** ke sath banaya gaya hai taaki **kabhi bhi Rate Limit (429) na lage** aur bot 24/7 bina ruke instant replies de!
 
@@ -9,16 +9,16 @@ Isko **Multi-Key Groq API Pool** aur **Dynamic Multi-Model Auto-Rotation** ke sa
 ## ⚡ Multi-Key & Multi-Model Rotation Engine (Kaise Kaam Karta Hai?)
 
 1. **Multi-Model Auto-Switching:**
-   - Devu pehle **LLaMA 3.3 70B Versatile** use karta hai.
-   - Agar kisi model par rate limit aati hai, to Devu automatically bina drop kiye agle model par switch ho jata hai:
+   - Sona pehle **LLaMA 3.3 70B Versatile** use karta hai.
+   - Agar kisi model par rate limit aati hai, to Sona automatically bina drop kiye agle model par switch ho jata hai:
      ```
      LLaMA 3.3 70B ➔ LLaMA 3.1 8B Instant ➔ LLaMA 3 70B ➔ Mixtral 8x7B ➔ Gemma 2 9B ➔ LLaMA 3 8B
      ```
 2. **Multi-Key Auto-Rotation:**
-   - Jab ek Groq Key ke saare models temporarily exhaust ho jaate hain, Devu automatically **Aapki Next Groq Key** par rotate ho jata hai.
+   - Jab ek Groq Key ke saare models temporarily exhaust ho jaate hain, Sona automatically **Aapki Next Groq Key** par rotate ho jata hai.
    - Keys ko 60-second cooldown ke baad dobara active kar diya jata hai.
 3. **Smart Offline Fallback:**
-   - Agar saari keys aur models exhaust ho jayein, to Devu offline intelligent Hinglish rules se reply dega taaki bot **kabhi bhi unresponsive na ho**!
+   - Agar saari keys aur models exhaust ho jayein, to Sona offline intelligent Hinglish rules se reply dega taaki bot **kabhi bhi unresponsive na ho**!
 
 ---
 
@@ -47,7 +47,7 @@ gsk_key1_abc123..., gsk_key2_xyz789..., gsk_key3_pqr456...
 
 ### Step 3: Workflow Start Karein
 1. GitHub Repo ke **Actions** tab me jayein.
-2. Left menu me **"Devu Telegram Bot 24/7 Cloud Runner"** par click karein.
+2. Left menu me **"Sona Telegram Bot 24/7 Cloud Runner"** par click karein.
 3. **Run workflow** button daba dein!
 
 Bot GitHub cloud par **24/7 start ho jayega** aur har 5 ghante me auto-schedule hokar continuous chalega!
@@ -59,7 +59,7 @@ Bot GitHub cloud par **24/7 start ho jayega** aur har 5 ghante me auto-schedule 
 | Command | Description |
 |---|---|
 | `/start` | Bot welcome & Partner menu |
-| `/setnickname <naam>` | Devu aapko kya bulaye (e.g. `/setnickname Jaan`) |
+| `/setnickname <naam>` | Sona aapko kya bulaye (e.g. `/setnickname Jaan`) |
 | `/settings` | Wishes & Random check-ins toggle |
 | `/groqstats` | Live Groq Keys count, active model & API requests stats |
 | `/stats` | Live connected users aur groups ki report |
