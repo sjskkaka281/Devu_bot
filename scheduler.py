@@ -1,6 +1,11 @@
 """
-Background Scheduler for Devu Telegram Bot.
+Background Scheduler for Sona Telegram Bot.
 Handles automated Morning/Afternoon/Evening/Night greetings and spontaneous random check-ins.
+
+Reliability: wish state is persisted in the SQLite database (bot_state table), so even if
+the bot restarts (GitHub Actions 5-hour sessions) a wish is NEVER skipped and NEVER sent
+twice on the same day. If the bot was offline at the exact wish time, the wish is sent as
+soon as the bot comes back online within that wish's window (catch-up).
 """
 
 import time
@@ -18,6 +23,16 @@ import database
 
 logger = logging.getLogger(__name__)
 
+# (state_key, window start minute-of-day, window end minute-of-day, message pool)
+# Wide windows = catch-up guarantee: wish bhejna kabhi miss nahi hota.
+WISH_SCHEDULE = [
+    ("morning",   7 * 60 + 30, 12 * 60 + 59, MORNING_WISHES),    # 07:30 - 12:59
+    ("afternoon", 13 * 60 + 15, 16 * 60 + 59, AFTERNOON_WISHES), # 13:15 - 16:59
+    ("evening",   17 * 60 + 45, 21 * 60 + 59, EVENING_WISHES),   # 17:45 - 21:59
+    ("night",     22 * 60 + 30, 25 * 60 + 59, NIGHT_WISHES),     # 22:30 - 01:59 (crosses midnight)
+]
+
+
 class DevuScheduler:
     def __init__(self, bot_instance):
         self.bot = bot_instance
@@ -27,13 +42,6 @@ class DevuScheduler:
         except Exception:
             self.tz = pytz.timezone("Asia/Kolkata")
 
-        self.last_sent = {
-            "morning": None,
-            "afternoon": None,
-            "evening": None,
-            "night": None,
-            "random_checkin": None
-        }
         self.running = False
         self.thread = None
 
@@ -41,10 +49,28 @@ class DevuScheduler:
         """Get current datetime in configured timezone."""
         return datetime.datetime.now(self.tz)
 
+    @staticmethod
+    def _wish_day(now):
+        """Calendar day a wish belongs to (after midnight, night wish counts for previous day)."""
+        day = now.date()
+        if now.hour < 6:
+            day -= datetime.timedelta(days=1)
+        return day.strftime("%Y-%m-%d")
+
+    def get_due_wishes(self, now):
+        """Return [(key, pool, day_str)] for wishes whose window is open and not yet sent for that day."""
+        minutes = now.hour * 60 + now.minute
+        if minutes < 6 * 60:          # 00:00-05:59 -> continuation of previous day's night window
+            minutes += 24 * 60
+        day_str = self._wish_day(now)
+        due = []
+        for key, start, end, pool in WISH_SCHEDULE:
+            if start <= minutes <= end and database.get_state("wish_" + key) != day_str:
+                due.append((key, pool, day_str))
+        return due
+
     def send_broadcast_message(self, message_list, is_wish=True):
         """Send greeting/checkin to all registered users and groups."""
-        today_date = self.get_current_time().strftime("%Y-%m-%d")
-        
         # 1. Send to private chat users
         users = database.get_all_dm_users(wishes_only=is_wish, checkins_only=(not is_wish))
         for u in users:
@@ -85,7 +111,7 @@ class DevuScheduler:
 
     def scheduler_loop(self):
         """Continuous background loop checking clock & triggers."""
-        logger.info("[+] Devu Background Scheduler running...")
+        logger.info("[+] Sona Background Scheduler running...")
         last_random_time = time.time()
         # Random interval between 2 to 4 hours for spontaneous check-ins
         random_interval = random.randint(7200, 14400)
@@ -93,34 +119,14 @@ class DevuScheduler:
         while self.running:
             try:
                 now = self.get_current_time()
-                today_str = now.strftime("%Y-%m-%d")
                 hour = now.hour
-                minute = now.minute
 
+                # 1-4. Daily wishes with DB-backed catch-up (never skipped, never repeated)
                 if CONFIG.get("AUTO_WISHES", True):
-                    # 1. Good Morning (Between 07:00 AM and 08:30 AM)
-                    if hour == 7 and minute >= 30 and self.last_sent["morning"] != today_str:
-                        logger.info("[Scheduler] Sending Morning Wishes...")
-                        self.send_broadcast_message(MORNING_WISHES, is_wish=True)
-                        self.last_sent["morning"] = today_str
-
-                    # 2. Good Afternoon (Between 01:00 PM and 02:00 PM)
-                    elif hour == 13 and minute >= 15 and self.last_sent["afternoon"] != today_str:
-                        logger.info("[Scheduler] Sending Afternoon Lunch Wishes...")
-                        self.send_broadcast_message(AFTERNOON_WISHES, is_wish=True)
-                        self.last_sent["afternoon"] = today_str
-
-                    # 3. Good Evening (Between 05:30 PM and 06:30 PM)
-                    elif hour == 17 and minute >= 45 and self.last_sent["evening"] != today_str:
-                        logger.info("[Scheduler] Sending Evening Chai Wishes...")
-                        self.send_broadcast_message(EVENING_WISHES, is_wish=True)
-                        self.last_sent["evening"] = today_str
-
-                    # 4. Good Night (Between 10:30 PM and 11:30 PM)
-                    elif hour == 22 and minute >= 30 and self.last_sent["night"] != today_str:
-                        logger.info("[Scheduler] Sending Good Night Wishes...")
-                        self.send_broadcast_message(NIGHT_WISHES, is_wish=True)
-                        self.last_sent["night"] = today_str
+                    for key, pool, day_str in self.get_due_wishes(now):
+                        logger.info(f"[Scheduler] Sending {key} wishes for {day_str}...")
+                        self.send_broadcast_message(pool, is_wish=True)
+                        database.set_state("wish_" + key, day_str)
 
                 # 5. Spontaneous Random Check-ins (Between 10 AM and 9 PM IST)
                 if CONFIG.get("RANDOM_CHECKINS", True) and (10 <= hour <= 21):
