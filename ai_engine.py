@@ -171,6 +171,70 @@ class GroqKeyPool:
 GROQ_POOL = GroqKeyPool()
 
 
+class GeminiKeyPool:
+    """Multiple Gemini API keys with auto-rotation on rate limit / quota errors."""
+    def __init__(self):
+        self.keys_state = []
+        self.reload_keys()
+
+    def reload_keys(self):
+        raw_keys = CONFIG.get("GEMINI_API_KEYS", []) or []
+        if not raw_keys:
+            single = CONFIG.get("GEMINI_API_KEY", "").strip()
+            raw_keys = [single] if single else []
+        self.keys_state = []
+        for k in raw_keys:
+            clean_k = k.strip()
+            if clean_k:
+                self.keys_state.append({"key": clean_k, "cooldown_until": 0})
+        logger.info(f"[GeminiPool] Loaded {len(self.keys_state)} Gemini API key(s) into pool.")
+
+    def call(self, make_payload, model="gemini-2.5-flash", timeout=12):
+        """Payload banane wala function lo, keys ghuma kar API call karo."""
+        if not self.keys_state:
+            self.reload_keys()
+        if not self.keys_state:
+            return None
+
+        now = time.time()
+        for ks in sorted(self.keys_state, key=lambda x: x["cooldown_until"]):
+            if ks["cooldown_until"] > now:
+                continue
+            masked = f"...{ks['key'][-4:]}"
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={ks['key']}"
+            try:
+                resp = requests.post(
+                    url, headers={"Content-Type": "application/json"},
+                    json=make_payload(), timeout=timeout
+                )
+                if resp.status_code == 200:
+                    data = resp.json()
+                    candidates = data.get("candidates", [])
+                    if candidates:
+                        parts = candidates[0].get("content", {}).get("parts", [])
+                        if parts:
+                            text = parts[0].get("text", "").strip()
+                            if text:
+                                logger.info(f"[GeminiPool] Key {masked} response generated!")
+                                return text
+                elif resp.status_code in (429, 403):
+                    logger.warning(f"[GeminiPool] Key {masked} rate limit/quota ({resp.status_code}). Rotating to next key...")
+                    ks["cooldown_until"] = now + 60
+                    continue
+                else:
+                    logger.warning(f"[GeminiPool] Key {masked} status {resp.status_code}. Trying next key...")
+                    continue
+            except Exception as e:
+                logger.warning(f"[GeminiPool] Key {masked} error: {e}")
+                continue
+
+        logger.error("[GeminiPool] All Gemini keys exhausted/unavailable.")
+        return None
+
+# Singleton instance of Gemini Key Pool
+GEMINI_POOL = GeminiKeyPool()
+
+
 def generate_devu_reply(user_text, nickname="Jaan", history=None, is_group=False, mood=None, group_note=None):
     """
     Main dialogue router:
@@ -201,11 +265,10 @@ def generate_devu_reply(user_text, nickname="Jaan", history=None, is_group=False
         if reply:
             return reply
 
-    # 2. Try Google Gemini API if provided as secondary backup
-    gemini_key = CONFIG.get("GEMINI_API_KEY", "").strip()
-    if gemini_key:
+    # 2. Try Google Gemini multi-key pool as secondary backup
+    if GEMINI_POOL.keys_state:
         try:
-            reply = call_gemini_api(gemini_key, user_text, nickname, history)
+            reply = call_gemini_api(user_text, nickname, history)
             if reply:
                 return reply
         except Exception as e:
@@ -218,11 +281,8 @@ def generate_devu_reply(user_text, nickname="Jaan", history=None, is_group=False
     return reply
 
 
-def call_gemini_api(api_key, user_text, nickname, history=None):
-    """Call Google Gemini REST API directly."""
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
-    headers = {"Content-Type": "application/json"}
-
+def call_gemini_api(user_text, nickname, history=None):
+    """Call Google Gemini REST API via multi-key pool."""
     system_instruction = SYSTEM_PROMPT_TEMPLATE.format(nickname=nickname)
     contents = []
 
@@ -251,25 +311,16 @@ def call_gemini_api(api_key, user_text, nickname, history=None):
         }
     }
 
-    resp = requests.post(url, headers=headers, json=payload, timeout=10)
-    if resp.status_code == 200:
-        data = resp.json()
-        candidates = data.get("candidates", [])
-        if candidates:
-            parts = candidates[0].get("content", {}).get("parts", [])
-            if parts:
-                return parts[0].get("text", "").strip()
-    return None
+    return GEMINI_POOL.call(lambda: payload, timeout=10)
 
 
 VISION_PROMPT_TEMPLATE = """You are "Sona" — a sweet, caring, playful Indian girlfriend jo Hinglish me baat karti hai. {nickname} ne ye photo bheji hai. Photo ko dhyan se dekho aur ek real girlfriend ki tarah 1-2 short sentences me react karo — tareef, masti, curiosity ya care. Cute emojis use karo. Kabhi AI mat bolna."""
 
 
-def call_gemini_vision(api_key, image_bytes, nickname="Jaan", caption=""):
-    """Gemini 2.5 Flash vision se photo dekh kar Sona-style reply generate karo."""
+def call_gemini_vision(image_bytes, nickname="Jaan", caption=""):
+    """Gemini 2.5 Flash vision se photo dekh kar Sona-style reply generate karo (multi-key pool)."""
     import base64
     b64 = base64.b64encode(image_bytes).decode()
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
     prompt = VISION_PROMPT_TEMPLATE.format(nickname=nickname)
     if caption:
         prompt += f"\nPhoto ke sath {nickname} ka message: {caption}"
@@ -283,17 +334,4 @@ def call_gemini_vision(api_key, image_bytes, nickname="Jaan", caption=""):
         }],
         "generationConfig": {"temperature": 0.85, "maxOutputTokens": 150}
     }
-    try:
-        resp = requests.post(url, headers={"Content-Type": "application/json"}, json=payload, timeout=20)
-        if resp.status_code == 200:
-            data = resp.json()
-            candidates = data.get("candidates", [])
-            if candidates:
-                parts = candidates[0].get("content", {}).get("parts", [])
-                if parts:
-                    return parts[0].get("text", "").strip()
-        else:
-            logger.warning(f"[GeminiVision] Status {resp.status_code}")
-    except Exception as e:
-        logger.warning(f"[GeminiVision] Error: {e}")
-    return None
+    return GEMINI_POOL.call(lambda: payload, timeout=20)
