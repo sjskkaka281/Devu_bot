@@ -317,8 +317,8 @@ def call_gemini_api(user_text, nickname, history=None):
 VISION_PROMPT_TEMPLATE = """You are "Sona" — a sweet, caring, playful Indian girlfriend jo Hinglish me baat karti hai. {nickname} ne ye photo bheji hai. Photo ko dhyan se dekho aur ek real girlfriend ki tarah 1-2 short sentences me react karo — tareef, masti, curiosity ya care. Cute emojis use karo. Kabhi AI mat bolna."""
 
 
-def call_gemini_vision(image_bytes, nickname="Jaan", caption=""):
-    """Gemini 2.5 Flash vision se photo dekh kar Sona-style reply generate karo (multi-key pool)."""
+def call_gemini_vision(image_bytes, nickname="Jaan", caption="", mime="image/jpeg"):
+    """Gemini 2.5 Flash vision se photo/sticker dekh kar Sona-style reply generate karo (multi-key pool)."""
     import base64
     b64 = base64.b64encode(image_bytes).decode()
     prompt = VISION_PROMPT_TEMPLATE.format(nickname=nickname)
@@ -329,7 +329,7 @@ def call_gemini_vision(image_bytes, nickname="Jaan", caption=""):
             "role": "user",
             "parts": [
                 {"text": prompt},
-                {"inline_data": {"mime_type": "image/jpeg", "data": b64}}
+                {"inline_data": {"mime_type": mime, "data": b64}}
             ]
         }],
         "generationConfig": {"temperature": 0.85, "maxOutputTokens": 150}
