@@ -84,6 +84,28 @@ JOKES = [
     "Zindagi me do hi cheezein sabse zaroori hain:\n1. Wi-Fi connection 📶\n2. Sona ke cute messages! 📱🥰🥰"
 ]
 
+# Group care: Sona group members ko meals & health ke liye regularly puchhti hai
+GROUP_BREAKFAST_PINGS = [
+    "Good morning friends! 🌅 Sab log breakfast kiya kya? Khali pet mat ghoomo! 🍳☕",
+    "Arey sab log! Subah ka nashta ho gaya ya abhi bhi bistar par ho? Jaldi khao! 😤❤️",
+]
+
+GROUP_LUNCH_PINGS = [
+    "Lunch time ho gaya sab log! 🍱 Khana kha liya kya? Time pe khaya karo! 🥺",
+    "Arey group walo! Lunch kiya ya kaam me bhool gaye? Pehle khana fir kaam! 😤💕",
+]
+
+GROUP_DINNER_PINGS = [
+    "Dinner ho gaya sab ke sab? 🍲 Raat ko halka khana aur time pe neend! 🌙",
+    "Sab log dinner kar lo please! Din bhar ki thakan ke baad khana zaroori hai! 💖",
+]
+
+GROUP_HEALTH_CHECKINS = [
+    "Sab log kaise ho? Tabiyat theek hai na? Apna khayal rakhna yaar! 🥰",
+    "Arey group ke pyare log! Aaj sabka mood kaisa hai? Thodi halchal sunao! 💬❤️",
+    "Paani peete raho sab log! Hydration zaroori hai, Sona ka order hai! 🥤💧",
+]
+
 # Photo reactions (jab Gemini vision na ho / fail ho jaye)
 PHOTO_REACTIONS = [
     "Hayee {name}! Kya photo hai 😍 Batao ye kab ki hai?",
