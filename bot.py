@@ -9,7 +9,9 @@ import time
 import signal
 import random
 import re
+import datetime
 import argparse
+import pytz
 import logging
 import telebot
 from telebot import types
@@ -19,6 +21,7 @@ from config import CONFIG, save_config
 import database
 import skills
 import mood as mood_engine
+import task as taskmod
 from ai_engine import generate_devu_reply, call_gemini_vision, GEMINI_POOL
 from scheduler import DevuScheduler
 from responses import (
@@ -94,6 +97,70 @@ def is_group_question(user_text):
         return True
     tokens = set(t for t in re.split(r"[^a-z0-9]+", user_text.lower()) if t)
     return bool(tokens & QUESTION_TOKENS)
+
+
+def _ist_now():
+    return datetime.datetime.now(pytz.timezone(CONFIG.get("TIMEZONE", "Asia/Kolkata")))
+
+
+def _task_intercept(message, user_text, is_private, nickname):
+    """Task engine: commands, cancel, confirm/refuse, naya natural-language task.
+    Returns True agar message task-related tha (normal AI flow skip)."""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+    t = user_text.lower().strip()
+    now = _ist_now()
+
+    # /task <details>  OR  /task (list)
+    if t == "/task" or t == "/tasks":
+        bot.reply_to(message, taskmod.list_tasks(chat_id, user_id))
+        return True
+    if t.startswith("/task "):
+        parsed = taskmod.try_parse_task(user_text[6:], force=True)
+        if parsed:
+            taskmod.add_task(chat_id, user_id, message.from_user.first_name or nickname, parsed)
+            bot.reply_to(message, taskmod.confirmation_line(parsed, nickname))
+        else:
+            bot.reply_to(
+                message,
+                "🥺 Time samajh nahi aayi! Aise likho: <code>/task roj 08:00 dawai lena</code> "
+                "ya natural: 'roj subah 8 baje dawai ke liye puchna'"
+            )
+        return True
+
+    # /deltask <id | keyword>
+    if t.startswith("/deltask"):
+        arg = user_text[len("/deltask"):].strip()
+        bot.reply_to(message, taskmod.cancel_by_arg(chat_id, user_id, arg))
+        return True
+
+    # Natural cancel: "abse yad mat dilana" etc.
+    if taskmod.detect_cancel(user_text) and taskmod.get_active_tasks(chat_id, user_id):
+        bot.reply_to(message, taskmod.cancel_by_arg(chat_id, user_id, ""))
+        return True
+
+    # Confirm / refuse for a task jo aaj pucha ja chuka hai
+    asked = taskmod.get_asked_pending(chat_id, user_id, now)
+    if asked:
+        if taskmod.detect_confirm(user_text):
+            taskmod.mark_done(asked, now)
+            bot.reply_to(message, random.choice(taskmod.DONE_LINES).format(name=nickname))
+            return True
+        if taskmod.detect_refuse(user_text):
+            bot.reply_to(
+                message,
+                f"Koi baat nahi {nickname} 🥺 Jaldi kar lena — main 30 minute baad phir yaad dilaungi! ❤️"
+            )
+            return True
+
+    # Natural language se naya task ("roj shaam 4 baje gym ke liye puchna")
+    parsed = taskmod.try_parse_task(user_text)
+    if parsed:
+        taskmod.add_task(chat_id, user_id, message.from_user.first_name or nickname, parsed)
+        bot.reply_to(message, taskmod.confirmation_line(parsed, nickname))
+        return True
+
+    return False
 
 
 # -------------------------------------------------------------
@@ -521,6 +588,10 @@ def handle_all_messages(message):
     # Fetch user profile
     user_data = database.get_user(user_id)
     nickname = user_data.get("nickname") if user_data else (message.from_user.first_name or "Jaan")
+
+    # ---------- TASK ENGINE (DM + Groups) ----------
+    if _task_intercept(message, user_text, is_private, nickname):
+        return
 
     # Determine whether bot should reply in group
     should_reply = False
