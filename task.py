@@ -35,10 +35,10 @@ PERIOD_EVE = ["shaam", "sham", "sandhya", "evening"]
 PERIOD_NIGHT = ["raat", "ratri", "raatri", "night", "midnight"]
 
 REMINDER_LINES = [
-    "{name}, ek kaam yaad dilau — {title}? Kiya kya? 🥺",
-    "Hey {name}! {title} — ho gaya ya abhi baaki hai? 💖",
-    "{name} ji, aapka task tha: {title}. Batao, done ya nahi? 😊",
-    "{name}... {title} ✅ ya ❌? Sach sach batana! ",
+    "{name}, {title} — done ya nahi? 🥺",
+    "Hey {name}! {title} ho gaya ya abhi baaki hai? 💖",
+    "{name} ji, aaj {title} — ✅ ya ❌? Sach sach batana! 😊",
+    "{name}... {title} ke liye aayi thi puchne — bol do jaldi! ",
 ]
 
 DONE_LINES = [
@@ -298,14 +298,18 @@ def try_parse_task(text, force=False):
         return None
     recurring = any(w in t for w in RECUR_WORDS)
 
-    # title: time-tokens aur filler hatao
+    # title: time-tokens aur filler hatao (taaki Sona user ki baat echo na kare)
     title = text
     title = re.sub(r"\d{1,2}[:.]\d{2}\s*(a\.m|p\.m|am|pm)\b", " ", title, flags=re.I)
     title = re.sub(r"\d{1,2}\s*(a\.m|p\.m|am|pm)\b", " ", title, flags=re.I)
     title = re.sub(r"\d{1,2}\s*(baje|baja|bje|baaje)?", " ", title, flags=re.I)
     for w in (PERIOD_AM + PERIOD_NOON + PERIOD_EVE + PERIOD_NIGHT + RECUR_WORDS + TASK_WORDS +
-              ["mujhe", "mujhse", "mujse", "mereko", "merko", "please", "plz", "ki nhi", "ki nahi",
-               "kiya ki nhi", "task", "aaj", "kal", "abse", "ab se", "mujhe", "bola", "bole", "sona", "tum"]):
+              ["mujhe", "mujhse", "mujse", "mereko", "merko", "muje", "mene", "maine", "main", "mai",
+               "humne", "hum", "please", "plz", "ki nhi", "ki nahi", "kiya ki nhi", "task", "aaj",
+               "kal", "abse", "ab se", "bola", "bole", "sona", "tum", "tumse", "aap", "aapko",
+               "batana", "puch", "lena", "leliya", "le liya", "liya", "li hai", "li", "kiya",
+               "kar liya", "ho gaya", "hai", "hain", "hoon", "ki", "kya", "nhi", "nahi", "ko",
+               "se", "ka", "ke", "ye", "yeh", "wo", "woh", "muje", "mena", "karu", "karunga"]):
         title = re.sub(rf"\b{re.escape(w)}\b", " ", title, flags=re.I)
     title = re.sub(r"\s+", " ", title).strip(" -.!,?")
     if len(title) < 3:
@@ -334,3 +338,14 @@ def confirmation_line(parsed, name):
     return (f"Pakka {name}! 💖 Maine yaad kar liya — <b>{parsed['title']}</b> ke liye main <b>{kind} "
             f"{when}</b> par aake puchhungi. Jab tak aap 'haan/done' nahi bologe, main har 30 min me "
             f"yaad dilati rahungi! 😘✅")
+
+
+def display_name(task_row):
+    """Nickname (DB) prefer karo, warna Telegram first name."""
+    try:
+        u = database.get_user(task_row["user_id"])
+        if u and u.get("nickname"):
+            return u["nickname"]
+    except Exception:
+        pass
+    return task_row["user_name"] or "Jaan"
