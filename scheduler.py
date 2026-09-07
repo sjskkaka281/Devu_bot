@@ -183,7 +183,7 @@ class DevuScheduler:
         """Due tasks ko puchho (time aa gaya, done nahi, 30 min retry window)."""
         for t in taskmod.get_due(now):
             try:
-                name = t["user_name"] or "Jaan"
+                name = taskmod.display_name(t)
                 line = random.choice(taskmod.REMINDER_LINES).format(name=name, title=t["title"])
                 self.bot.send_message(t["chat_id"], line)
                 taskmod.mark_asked(t["id"], now)
